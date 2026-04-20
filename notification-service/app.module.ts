@@ -18,8 +18,9 @@ import { Notification } from './notification/entities/notification.entity';
         username: config.get('DB_USER'),
         password: config.get('DB_PASS'),
         database: config.get('DB_NAME'),
+        ssl: { rejectUnauthorized: false },
         entities: [Notification],
-        synchronize: true, // false en production
+        synchronize: true,
       }),
       inject: [ConfigService],
     }),
