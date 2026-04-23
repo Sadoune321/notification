@@ -9,9 +9,6 @@ import { firstValueFrom } from 'rxjs';
 export class ReservationListener {
   private readonly logger = new Logger(ReservationListener.name);
 
- 
-  private readonly notifiedReservations = new Set<string>();
-
   constructor(
     private readonly httpService: HttpService,
     private readonly notificationService: NotificationService,
@@ -25,73 +22,70 @@ export class ReservationListener {
     this.logger.debug('Vérification des meetings à venir...');
 
     try {
-     
+      
+      const tracked =
+        await this.notificationService.getAllTrackedReservations();
 
-      let upcomingReservations: any[] = [];
-
-      try {
-        const response = await firstValueFrom(
-          this.httpService.get(`${reservationUrl}/reservation/upcoming/all`),
-        );
-        upcomingReservations = response.data ?? [];
-      } catch (err: any) {
-        
-        if (err?.response?.status === 404 || err?.response?.status === 405) {
-          this.logger.warn(
-            '/reservation/upcoming/all non disponible, endpoint ignoré.',
-          );
-          return;
-        }
-        throw err;
-      }
-
-      if (!upcomingReservations.length) {
-        this.logger.debug('Aucun meeting imminent.');
+      if (!tracked.length) {
+        this.logger.debug('Aucune réservation à surveiller.');
         return;
       }
 
-     
-      for (const reservation of upcomingReservations) {
-        const reservationId: string = reservation.id;
+      
+      for (const reservation of tracked) {
+        try {
+          const response = await firstValueFrom(
+            this.httpService.get(
+              `${reservationUrl}/reservation/upcoming/doctor/${reservation.doctorId}`,
+            ),
+          );
 
-        if (this.notifiedReservations.has(reservationId)) {
-          continue; 
+          const upcomingList: any[] = response.data ?? [];
+
+          
+          const isImminent = upcomingList.some(
+            (item: any) => item.id === reservation.reservationId,
+          );
+
+          if (!isImminent) {
+            continue;
+          }
+
+          
+          await this.notificationService.notifyMeetingReminder({
+            reservationId: reservation.reservationId,
+            userId: reservation.patientId,
+            meetingUrl: reservation.meetingUrl,
+            minutesBefore: 15,
+            day: reservation.reservationDay,
+            startTime: reservation.reservationTime,
+          });
+
+         
+          await this.notificationService.notifyMeetingReminder({
+            reservationId: reservation.reservationId,
+            userId: reservation.doctorId,
+            meetingUrl: reservation.meetingUrl,
+            minutesBefore: 15,
+            day: reservation.reservationDay,
+            startTime: reservation.reservationTime,
+          });
+
+         
+          await this.notificationService.markReminderSent(
+            reservation.reservationId,
+          );
+
+          this.logger.log(
+            ` Rappel envoyé — réservation ${reservation.reservationId} ` +
+              `(doctor: ${reservation.doctorId}, patient: ${reservation.patientId})`,
+          );
+        } catch (err: any) {
+          this.logger.error(
+            `Erreur pour la réservation ${reservation.reservationId}`,
+            err?.message,
+          );
         }
-
-        const {
-          patientId,
-          doctorId,
-          meetingUrl,
-          schedule,
-        } = reservation;
-
-        const day: string = schedule?.dayOfWeek ?? '';
-        const startTime: string = schedule?.startTime ?? '';
-
-       
-        await this.notificationService.notifyMeetingReminder({
-          reservationId,
-          userId: patientId,
-          meetingUrl,
-          minutesBefore: 15,
-          day,
-          startTime,
-        });
-
-       
-        await this.notificationService.notifyMeetingReminder({
-          reservationId,
-          userId: doctorId,
-          meetingUrl,
-          minutesBefore: 15,
-          day,
-          startTime,
-        });
-
-        this.notifiedReservations.add(reservationId);
-        this.logger.log(
-          `Rappel envoyé pour la réservation ${reservationId} (doctor: ${doctorId}, patient: ${patientId})`,
-        );
       }
 
       this.logger.debug('Reminder check done');
