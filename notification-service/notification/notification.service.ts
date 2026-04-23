@@ -13,18 +13,15 @@ export class NotificationService {
     private readonly gateway: NotificationGateway,
   ) {}
 
-  
   async create(dto: CreateNotificationDto): Promise<Notification> {
     const notification = this.repo.create(dto);
     const saved = await this.repo.save(notification);
 
-    
+   
     this.gateway.sendToUser(dto.userId, saved);
-
     return saved;
   }
 
- 
   async findByUser(userId: string): Promise<Notification[]> {
     return this.repo.find({
       where: { userId },
@@ -32,22 +29,18 @@ export class NotificationService {
     });
   }
 
-  
   async markAsRead(id: string): Promise<void> {
     await this.repo.update(id, { isRead: true });
   }
 
-  
   async markAllAsRead(userId: string): Promise<void> {
     await this.repo.update({ userId, isRead: false }, { isRead: true });
   }
 
-  
   async remove(id: string): Promise<void> {
     await this.repo.delete(id);
   }
 
-  
 
   async notifyReservationCreated(data: {
     reservationId: string;
@@ -58,7 +51,7 @@ export class NotificationService {
     meetingUrl: string;
     reason: string;
   }) {
-    
+  
     await this.create({
       userId: data.patientId,
       type: NotificationType.RESERVATION_CREATED,
@@ -71,7 +64,6 @@ export class NotificationService {
       },
     });
 
-    
     await this.create({
       userId: data.doctorId,
       type: NotificationType.RESERVATION_CREATED,
@@ -83,8 +75,35 @@ export class NotificationService {
         reason: data.reason,
       },
     });
+
+   
+    if (data.meetingUrl) {
+      await this.create({
+        userId: data.patientId,
+        type: NotificationType.MEETING_REMINDER,
+        title: ' Lien de consultation disponible',
+        message: `Votre consultation du ${data.reservationDay} à ${data.reservationTime} est en ligne. Voici votre lien de meeting.`,
+        payload: {
+          reservationId: data.reservationId,
+          meetingUrl: data.meetingUrl,
+        },
+      });
+
+      await this.create({
+        userId: data.doctorId,
+        type: NotificationType.MEETING_REMINDER,
+        title: ' Lien de consultation disponible',
+        message: `Consultation du ${data.reservationDay} à ${data.reservationTime} — lien meeting prêt.`,
+        payload: {
+          reservationId: data.reservationId,
+          meetingUrl: data.meetingUrl,
+          patientId: data.patientId,
+        },
+      });
+    }
   }
 
+ 
   async notifyReservationCancelled(data: {
     reservationId: string;
     doctorId: string;
@@ -97,7 +116,7 @@ export class NotificationService {
     await this.create({
       userId: data.patientId,
       type: NotificationType.RESERVATION_CANCELLED,
-      title: ' Réservation annulée',
+      title: '❌ Réservation annulée',
       message,
       payload: { reservationId: data.reservationId },
     });
@@ -105,23 +124,31 @@ export class NotificationService {
     await this.create({
       userId: data.doctorId,
       type: NotificationType.RESERVATION_CANCELLED,
-      title: ' Réservation annulée',
+      title: '❌ Réservation annulée',
       message,
       payload: { reservationId: data.reservationId },
     });
   }
 
+ 
   async notifyMeetingReminder(data: {
     reservationId: string;
     userId: string;
     meetingUrl: string;
     minutesBefore: number;
+    day?: string;
+    startTime?: string;
   }) {
+    const timeInfo =
+      data.day && data.startTime
+        ? ` (${data.day} à ${data.startTime})`
+        : '';
+
     await this.create({
       userId: data.userId,
       type: NotificationType.MEETING_REMINDER,
       title: ' Rappel de consultation',
-      message: `Votre consultation commence dans ${data.minutesBefore} minutes.`,
+      message: `Votre consultation${timeInfo} commence dans ${data.minutesBefore} minutes.`,
       payload: {
         reservationId: data.reservationId,
         meetingUrl: data.meetingUrl,
