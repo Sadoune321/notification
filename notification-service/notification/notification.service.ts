@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification, NotificationType } from './entities/notification.entity';
+import { TrackedReservation } from './entities/tracked-reservation.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationGateway } from './notification.gateway';
 
@@ -10,14 +11,18 @@ export class NotificationService {
   constructor(
     @InjectRepository(Notification)
     private readonly repo: Repository<Notification>,
+
+    @InjectRepository(TrackedReservation)
+    private readonly trackedRepo: Repository<TrackedReservation>,
+
     private readonly gateway: NotificationGateway,
   ) {}
+
+ 
 
   async create(dto: CreateNotificationDto): Promise<Notification> {
     const notification = this.repo.create(dto);
     const saved = await this.repo.save(notification);
-
-   
     this.gateway.sendToUser(dto.userId, saved);
     return saved;
   }
@@ -41,6 +46,41 @@ export class NotificationService {
     await this.repo.delete(id);
   }
 
+  
+
+  async saveTrackedReservation(data: {
+    reservationId: string;
+    doctorId: string;
+    patientId: string;
+    meetingUrl: string;
+    reservationDay: string;
+    reservationTime: string;
+  }): Promise<void> {
+    const tracked = this.trackedRepo.create({
+      reservationId: data.reservationId,
+      doctorId: data.doctorId,
+      patientId: data.patientId,
+      meetingUrl: data.meetingUrl,
+      reservationDay: data.reservationDay,
+      reservationTime: data.reservationTime,
+      reminderSent: false,
+    });
+    await this.trackedRepo.save(tracked);
+  }
+
+  async getAllTrackedReservations(): Promise<TrackedReservation[]> {
+    return this.trackedRepo.find({ where: { reminderSent: false } });
+  }
+
+  async markReminderSent(reservationId: string): Promise<void> {
+    await this.trackedRepo.update({ reservationId }, { reminderSent: true });
+  }
+
+  async removeTrackedReservation(reservationId: string): Promise<void> {
+    await this.trackedRepo.delete({ reservationId });
+  }
+
+  
 
   async notifyReservationCreated(data: {
     reservationId: string;
@@ -51,6 +91,16 @@ export class NotificationService {
     meetingUrl: string;
     reason: string;
   }) {
+    
+    await this.saveTrackedReservation({
+      reservationId: data.reservationId,
+      doctorId: data.doctorId,
+      patientId: data.patientId,
+      meetingUrl: data.meetingUrl,
+      reservationDay: data.reservationDay,
+      reservationTime: data.reservationTime,
+    });
+
   
     await this.create({
       userId: data.patientId,
@@ -64,6 +114,7 @@ export class NotificationService {
       },
     });
 
+   
     await this.create({
       userId: data.doctorId,
       type: NotificationType.RESERVATION_CREATED,
@@ -76,7 +127,7 @@ export class NotificationService {
       },
     });
 
-   
+    
     if (data.meetingUrl) {
       await this.create({
         userId: data.patientId,
@@ -89,10 +140,11 @@ export class NotificationService {
         },
       });
 
+      
       await this.create({
         userId: data.doctorId,
         type: NotificationType.MEETING_REMINDER,
-        title: ' Lien de consultation disponible',
+        title: 'Lien de consultation disponible',
         message: `Consultation du ${data.reservationDay} à ${data.reservationTime} — lien meeting prêt.`,
         payload: {
           reservationId: data.reservationId,
@@ -103,7 +155,8 @@ export class NotificationService {
     }
   }
 
- 
+
+
   async notifyReservationCancelled(data: {
     reservationId: string;
     doctorId: string;
@@ -111,6 +164,9 @@ export class NotificationService {
     reservationDay: string;
     reservationTime: string;
   }) {
+
+    await this.removeTrackedReservation(data.reservationId);
+
     const message = `Le rendez-vous du ${data.reservationDay} à ${data.reservationTime} a été annulé.`;
 
     await this.create({
@@ -130,7 +186,8 @@ export class NotificationService {
     });
   }
 
- 
+  
+
   async notifyMeetingReminder(data: {
     reservationId: string;
     userId: string;
