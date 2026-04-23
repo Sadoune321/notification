@@ -19,7 +19,7 @@ export class NotificationGateway
   @WebSocketServer()
   server: Server;
 
-  // Map userId → socketId pour cibler chaque utilisateur
+  
   private userSockets = new Map<string, string>();
 
   handleConnection(client: Socket) {
@@ -27,7 +27,7 @@ export class NotificationGateway
   }
 
   handleDisconnect(client: Socket) {
-    // Nettoyer la map quand un client se déconnecte
+
     for (const [userId, socketId] of this.userSockets.entries()) {
       if (socketId === client.id) {
         this.userSockets.delete(userId);
@@ -37,7 +37,7 @@ export class NotificationGateway
     }
   }
 
-  // Le client s'identifie après connexion
+ 
   @SubscribeMessage('register')
   handleRegister(
     @MessageBody() data: { userId: string },
@@ -48,7 +48,7 @@ export class NotificationGateway
     client.emit('registered', { success: true });
   }
 
-  // Envoyer une notification à un utilisateur spécifique
+
   sendToUser(userId: string, notification: any) {
     const socketId = this.userSockets.get(userId);
     if (socketId) {
