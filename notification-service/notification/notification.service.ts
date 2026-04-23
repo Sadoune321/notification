@@ -116,7 +116,7 @@ export class NotificationService {
     await this.create({
       userId: data.patientId,
       type: NotificationType.RESERVATION_CANCELLED,
-      title: '❌ Réservation annulée',
+      title: ' Réservation annulée',
       message,
       payload: { reservationId: data.reservationId },
     });
@@ -124,7 +124,7 @@ export class NotificationService {
     await this.create({
       userId: data.doctorId,
       type: NotificationType.RESERVATION_CANCELLED,
-      title: '❌ Réservation annulée',
+      title: ' Réservation annulée',
       message,
       payload: { reservationId: data.reservationId },
     });
