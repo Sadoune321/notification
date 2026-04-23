@@ -4,11 +4,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { NotificationModule } from './notification/notification.module';
 import { EventsModule } from './events/events.module';
 import { Notification } from './notification/entities/notification.entity';
+import { TrackedReservation } from './notification/entities/tracked-reservation.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -19,12 +19,11 @@ import { Notification } from './notification/entities/notification.entity';
         password: config.get('DB_PASS'),
         database: config.get('DB_NAME'),
         ssl: { rejectUnauthorized: false },
-        entities: [Notification],
+        entities: [Notification, TrackedReservation],
         synchronize: true,
       }),
       inject: [ConfigService],
     }),
-
     NotificationModule,
     EventsModule,
   ],
