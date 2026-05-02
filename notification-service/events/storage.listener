@@ -5,6 +5,13 @@ import { NotificationService } from '../notification/notification.service';
 import { firstValueFrom } from 'rxjs';
 import * as FormData from 'form-data';
 
+type MulterFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  size: number;
+};
+
 export interface UploadedFileResult {
   filename: string;
   url: string;
@@ -21,22 +28,18 @@ export class StorageListener {
     private readonly notificationService: NotificationService,
     private readonly config: ConfigService,
   ) {
-    
     this.storageUrl =
       this.config.get<string>('STORAGE_SERVICE_URL') ??
       'https://storage-service-yxqy.onrender.com';
   }
 
- 
   async uploadSingle(params: {
-    file: Express.Multer.File;
+    file: MulterFile;
     patientId: string;
     doctorId: string;
     type: string;
   }): Promise<UploadedFileResult> {
-    this.logger.log(
-      `Uploading single file for patient ${params.patientId} / doctor ${params.doctorId}`,
-    );
+    this.logger.log(`Uploading single file — patient: ${params.patientId} / doctor: ${params.doctorId}`);
 
     const form = new FormData();
     form.append('file', params.file.buffer, {
@@ -57,7 +60,6 @@ export class StorageListener {
 
     const uploadedFile = response.data;
 
-    
     await this.notificationService.notifyFileUploaded({
       patientId: params.patientId,
       doctorId: params.doctorId,
@@ -65,23 +67,17 @@ export class StorageListener {
       files: [uploadedFile],
     });
 
-    this.logger.log(
-      `Single file uploaded & notifications sent — ${uploadedFile.filename}`,
-    );
-
+    this.logger.log(`Single file uploaded & notifications sent — ${uploadedFile.filename}`);
     return uploadedFile;
   }
 
-  
   async uploadMultiple(params: {
-    files: Express.Multer.File[];
+    files: MulterFile[];
     patientId: string;
     doctorId: string;
     type: string;
   }): Promise<UploadedFileResult[]> {
-    this.logger.log(
-      `Uploading ${params.files.length} files for patient ${params.patientId} / doctor ${params.doctorId}`,
-    );
+    this.logger.log(`Uploading ${params.files.length} files — patient: ${params.patientId} / doctor: ${params.doctorId}`);
 
     const form = new FormData();
     for (const file of params.files) {
@@ -104,7 +100,6 @@ export class StorageListener {
 
     const uploadedFiles = response.data;
 
-    
     await this.notificationService.notifyFileUploaded({
       patientId: params.patientId,
       doctorId: params.doctorId,
@@ -112,10 +107,7 @@ export class StorageListener {
       files: uploadedFiles,
     });
 
-    this.logger.log(
-      `${uploadedFiles.length} files uploaded & notifications sent`,
-    );
-
+    this.logger.log(`${uploadedFiles.length} files uploaded & notifications sent`);
     return uploadedFiles;
   }
 }
