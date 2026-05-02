@@ -12,29 +12,33 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
+import { memoryStorage } from 'multer';
 import { StorageListener } from './storage.listener';
+
+type MulterFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  size: number;
+};
 
 @Controller('storage')
 @UseGuards(AuthGuard('jwt'))
 export class StorageController {
   constructor(private readonly storageListener: StorageListener) {}
 
- 
+  
   @Post('upload/single')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async uploadSingle(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile() file: MulterFile,
     @Body('patientId') patientId: string,
     @Body('doctorId') doctorId: string,
     @Body('type') type: string,
   ) {
-    if (!file) {
-      throw new BadRequestException('No file provided.');
-    }
-    if (!patientId || !doctorId) {
-      throw new BadRequestException('patientId and doctorId are required.');
-    }
+    if (!file) throw new BadRequestException('No file provided.');
+    if (!patientId || !doctorId) throw new BadRequestException('patientId and doctorId are required.');
 
     return this.storageListener.uploadSingle({
       file,
@@ -47,19 +51,15 @@ export class StorageController {
  
   @Post('upload/multiple')
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FilesInterceptor('files', 10)) 
+  @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage() }))
   async uploadMultiple(
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles() files: MulterFile[],
     @Body('patientId') patientId: string,
     @Body('doctorId') doctorId: string,
     @Body('type') type: string,
   ) {
-    if (!files || files.length === 0) {
-      throw new BadRequestException('No files provided.');
-    }
-    if (!patientId || !doctorId) {
-      throw new BadRequestException('patientId and doctorId are required.');
-    }
+    if (!files || files.length === 0) throw new BadRequestException('No files provided.');
+    if (!patientId || !doctorId) throw new BadRequestException('patientId and doctorId are required.');
 
     return this.storageListener.uploadMultiple({
       files,
