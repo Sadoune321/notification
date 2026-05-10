@@ -30,7 +30,7 @@ export class StorageListener {
   ) {
     this.storageUrl =
       this.config.get<string>('STORAGE_SERVICE_URL') ??
-      'https://storage-service-yxqy.onrender.com';
+      'https://storage-service-slgl.onrender.com';
   }
 
   async uploadSingle(params: {
