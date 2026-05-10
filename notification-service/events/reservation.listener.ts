@@ -18,40 +18,39 @@ export class ReservationListener {
   @Cron(CronExpression.EVERY_MINUTE)
   async checkUpcomingMeetings() {
     const reservationUrl = this.config.get<string>('RESERVATION_SERVICE_URL');
+    const serviceToken = this.config.get<string>('SERVICE_TOKEN');
 
     this.logger.debug('Vérification des meetings à venir...');
 
     try {
-      
-      const tracked =
-        await this.notificationService.getAllTrackedReservations();
+      const tracked = await this.notificationService.getAllTrackedReservations();
 
       if (!tracked.length) {
         this.logger.debug('Aucune réservation à surveiller.');
         return;
       }
 
-      
       for (const reservation of tracked) {
         try {
           const response = await firstValueFrom(
             this.httpService.get(
               `${reservationUrl}/reservation/upcoming/doctor/${reservation.doctorId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${serviceToken}`,
+                },
+              },
             ),
           );
 
           const upcomingList: any[] = response.data ?? [];
 
-          
           const isImminent = upcomingList.some(
             (item: any) => item.id === reservation.reservationId,
           );
 
-          if (!isImminent) {
-            continue;
-          }
+          if (!isImminent) continue;
 
-          
           await this.notificationService.notifyMeetingReminder({
             reservationId: reservation.reservationId,
             userId: reservation.patientId,
@@ -61,7 +60,6 @@ export class ReservationListener {
             startTime: reservation.reservationTime,
           });
 
-         
           await this.notificationService.notifyMeetingReminder({
             reservationId: reservation.reservationId,
             userId: reservation.doctorId,
@@ -71,13 +69,12 @@ export class ReservationListener {
             startTime: reservation.reservationTime,
           });
 
-         
           await this.notificationService.markReminderSent(
             reservation.reservationId,
           );
 
           this.logger.log(
-            ` Rappel envoyé — réservation ${reservation.reservationId} ` +
+            `Rappel envoyé — réservation ${reservation.reservationId} ` +
               `(doctor: ${reservation.doctorId}, patient: ${reservation.patientId})`,
           );
         } catch (err: any) {
